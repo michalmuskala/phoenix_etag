@@ -28,6 +28,8 @@ defmodule PhoenixEtag.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    []
+    [{:phoenix, "~> 1.2"},
+     {:cowboy, "~> 1.1"},
+     {:plug, "~> 1.0"}]
   end
 end
