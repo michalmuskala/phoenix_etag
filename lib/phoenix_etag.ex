@@ -37,14 +37,16 @@ defmodule PhoenixETag do
       raise "cannot render template #{inspect template} because conn.params[\"_format\"] is not set. " <>
             "Please set `plug :accepts, ~w(html json ...)` in your pipeline."
     template = template_name(template, format)
-    do_render_if_stale(conn, template, format, assigns)
+    do_render_if_stale(conn, template, assigns)
   end
 
   def render_if_stale(conn, template, assigns)
       when is_binary(template) and (is_list(assigns) or is_map(assigns)) do
     case Path.extname(template) do
-      "." <> format ->
-        do_render_if_stale(conn, template, format, assigns)
+      "." <> _format ->
+        # We need to do this check before trying to ask for stale checks,
+        # otherwise we'll hit FunctionClauseError in view instead of this one
+        do_render_if_stale(conn, template, assigns)
       "" ->
         raise "cannot render template #{inspect template} without format. Use an atom if the " <>
               "template format is meant to be set dynamically based on the request format"
@@ -63,11 +65,11 @@ defmodule PhoenixETag do
     |> render_if_stale(template, assigns)
   end
 
-  defp do_render_if_stale(conn, template, format, assigns) do
+  defp do_render_if_stale(conn, template, assigns) do
     view = Phoenix.Controller.view_module(conn) ||
       raise "a view module was not specified, set one with put_view/2"
     conn
-    |> prepare_assigns(Map.new(assigns), format)
+    |> prepare_assigns(assigns)
     |> if_stale(view, template, &Phoenix.Controller.render(&1, template, &2))
   end
 
@@ -76,28 +78,8 @@ defmodule PhoenixETag do
   defp template_name(name, _format) when is_binary(name),
     do: name
 
-  defp prepare_assigns(conn, assigns, format) do
-    layout =
-      case layout(conn, assigns, format) do
-        {mod, layout} -> {mod, template_name(layout, format)}
-        false -> false
-      end
-
-    update_in conn.assigns, &do_prepare_assigns(&1, assigns, layout)
-  end
-
-  defp do_prepare_assigns(old, new, layout) do
-    old
-    |> Map.merge(new)
-    |> Map.put(:layout, layout)
-  end
-
-  defp layout(conn, assigns, format) do
-    if format in Phoenix.Controller.layout_formats(conn) do
-      Map.get(assigns, :layout, Phoenix.Controller.layout(conn))
-    else
-      false
-    end
+  defp prepare_assigns(conn, assigns) do
+    update_in conn.assigns, &Enum.into(assigns, &1)
   end
 
   defp if_stale(conn, view, template, fun) do
