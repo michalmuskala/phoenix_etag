@@ -1,4 +1,4 @@
-defmodule PhoenixEtag do
+defmodule PhoenixETag do
   def schema_etag(nil), do: nil
   def schema_etag([]), do: []
   def schema_etag(schema_or_schemas) do
@@ -115,8 +115,7 @@ defmodule PhoenixEtag do
   defp put_last_modified(conn, nil),
     do: conn
   defp put_last_modified(conn, modified) do
-    modified = modified |> NaiveDateTime.to_erl |> :cowboy_clock.rfc1123
-    Plug.Conn.put_resp_header(conn, "last-modified", modified)
+    Plug.Conn.put_resp_header(conn, "last-modified", format_date(modified))
   end
 
   defp stale?(conn, etag, modified) do
@@ -134,9 +133,8 @@ defmodule PhoenixEtag do
 
   defp modified_since?(header, last_modified) do
     if header && last_modified do
-      modified_since = :cowboy_http.rfc1123_date(header)
-      modified_since = :calendar.datetime_to_gregorian_seconds(modified_since)
-      last_modified  = :calendar.datetime_to_gregorian_seconds(last_modified)
+      modified_since = :httpd_util.convert_request_date(header)
+      last_modified = DateTime.to_unix(last_modified)
       last_modified > modified_since
     else
       false
@@ -151,4 +149,24 @@ defmodule PhoenixEtag do
       false
     end
   end
+
+  defp format_date(datetime) do
+    datetime
+    |> NaiveDateTime.to_erl
+    |> :httpd_util.rfc1123_date
+    |> List.to_string
+  end
+
+  defp parse_date(string) do
+    case :httpd_util.convert_request_date(String.to_charlist(string)) do
+      :bad_date ->
+        0 # in case of bad date we consider content stale
+      date ->
+        date
+        |> NaiveDateTime.from_erl!
+        |> DateTime.from_naive!("Etc/UTC")
+        |> DateTime.to_unix
+    end
+  end
+
 end
