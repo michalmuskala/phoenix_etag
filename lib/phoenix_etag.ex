@@ -133,7 +133,7 @@ defmodule PhoenixETag do
 
   defp modified_since?(header, last_modified) do
     if header && last_modified do
-      modified_since = :httpd_util.convert_request_date(header)
+      modified_since = parse_date(header)
       last_modified = DateTime.to_unix(last_modified)
       last_modified > modified_since
     else
@@ -153,20 +153,14 @@ defmodule PhoenixETag do
   defp format_date(datetime) do
     datetime
     |> NaiveDateTime.to_erl
-    |> :httpd_util.rfc1123_date
-    |> List.to_string
+    |> :phoenix_etag_date.rfc1123
   end
 
   defp parse_date(string) do
-    case :httpd_util.convert_request_date(String.to_charlist(string)) do
-      :bad_date ->
-        0 # in case of bad date we consider content stale
-      date ->
-        date
-        |> NaiveDateTime.from_erl!
-        |> DateTime.from_naive!("Etc/UTC")
-        |> DateTime.to_unix
-    end
+    string
+    |> :phoenix_etag_date.parse_date
+    |> NaiveDateTime.from_erl!
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_unix
   end
-
 end
