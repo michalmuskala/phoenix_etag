@@ -1,13 +1,22 @@
 defmodule PhoenixETag do
   def schema_etag(nil), do: nil
-  def schema_etag([]), do: []
+  def schema_etag([]), do: nil
   def schema_etag(schema_or_schemas) do
     list = Enum.map(List.wrap(schema_or_schemas), fn schema ->
-      [schema.__struct__, schema.id, schema.updated_at]
+      [schema.__struct__, schema.id, NaiveDateTime.to_erl(schema.updated_at)]
     end)
 
     binary = :erlang.term_to_binary(list)
     "W/ " <> Base.encode16(:crypto.hash(:md5, binary), case: :lower)
+  end
+
+  def schema_last_modified(nil), do: nil
+  def schema_last_modified([]), do: nil
+  def schema_last_modified(schema_or_schemas) do
+    schema_or_schemas
+    |> List.wrap
+    |> Enum.map(&(&1.updated_at))
+    |> Enum.max_by(&NaiveDateTime.to_erl/1)
   end
 
   def render_if_stale(conn, template_or_assigns \\ [])
@@ -55,10 +64,11 @@ defmodule PhoenixETag do
   end
 
   defp do_render_if_stale(conn, template, format, assigns) do
-    view = Phoenix.Controller.view_module(conn)
+    view = Phoenix.Controller.view_module(conn) ||
+      raise "a view module was not specified, set one with put_view/2"
     conn
-    |> prepare_assigns(assigns, format)
-    |> if_stale(view, template, &Phoenix.Controller.render(&1, template, %{}))
+    |> prepare_assigns(Map.new(assigns), format)
+    |> if_stale(view, template, &Phoenix.Controller.render(&1, template, &2))
   end
 
   defp template_name(name, format) when is_atom(name),
@@ -101,7 +111,7 @@ defmodule PhoenixETag do
       |> put_last_modified(modified)
 
     if stale?(conn, etag, modified) do
-      fun.(conn)
+      fun.(conn, Map.take(conn.assigns, [:layout]))
     else
       Plug.Conn.send_resp(conn, 304, "")
     end
