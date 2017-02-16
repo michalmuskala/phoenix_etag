@@ -126,7 +126,7 @@ defmodule PhoenixETag do
   defp modified_since?(header, last_modified) do
     if header && last_modified do
       modified_since = parse_date(header)
-      last_modified = DateTime.to_unix(last_modified)
+      last_modified = to_unix(last_modified)
       last_modified > modified_since
     else
       false
@@ -141,6 +141,9 @@ defmodule PhoenixETag do
       false
     end
   end
+
+  defp to_unix(%DateTime{} = dt), do: DateTime.to_unix(dt)
+  defp to_unix(naive), do: to_unix(DateTime.from_naive!(naive, "Etc/UTC"))
 
   defp format_date(datetime) do
     datetime

@@ -44,6 +44,7 @@ defmodule PhoenixETagTest do
   @naive ~N[2017-02-16 16:28:05.967734]
   @date DateTime.from_naive!(@naive, "Etc/UTC")
   @etag "W/ 34d2cbd4b03b46274fd784fb792a57f4"
+  @last_modified "Thu, 16 Feb 2017 16:28:05 GMT"
 
   describe "schema_etag/1" do
     test "with empty result" do
@@ -77,6 +78,46 @@ defmodule PhoenixETagTest do
       now = DateTime.utc_now
       schema = [%Schema{updated_at: @naive}, %Schema{updated_at: now}]
       assert schema_last_modified(schema) == now
+    end
+  end
+
+  describe "render_if_stale" do
+    test "responds with etag" do
+      conn = render_if_stale(conn(), "show.html", data: schema())
+      assert get_resp_header(conn, "etag") == [@etag]
+      assert conn.status == 200
+    end
+
+    test "responds with last-modified" do
+      conn = render_if_stale(conn(), "show.html", data: schema())
+      assert get_resp_header(conn, "last-modified") == [@last_modified]
+      assert conn.status == 200
+    end
+
+    test "respnds with 304 for fresh content based on etag" do
+      conn = put_req_header(conn(), "if-none-match", @etag)
+      conn = render_if_stale(conn, "show.html", data: schema())
+      assert conn.status == 304
+      assert conn.state == :sent
+    end
+
+    test "responds with 304 for fresh content based on last_modified" do
+      conn = put_req_header(conn(), "if-modified-since", @last_modified)
+      conn = render_if_stale(conn, "show.html", data: schema())
+      assert conn.status == 304
+      assert conn.state == :sent
+    end
+
+    test "skips if etag does not match" do
+      conn = put_req_header(conn(), "if-none-match", "bad value")
+      conn = render_if_stale(conn, "show.html", data: schema())
+      assert conn.status == 200
+    end
+
+    test "skips if last_modified does not match" do
+      conn = put_req_header(conn(), "if-modified-since", "Thu, 16 Feb 2016 16:28:05 GMT")
+      conn = render_if_stale(conn, "show.html", data: schema())
+      assert conn.status == 200
     end
   end
 
