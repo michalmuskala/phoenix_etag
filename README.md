@@ -46,7 +46,7 @@ by adding `phoenix_etag` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
-  [{:phoenix_etag, "~> 0.1.0"}]
+  [{:phoenix_etag, "~> 0.1"}]
 end
 ```
 
