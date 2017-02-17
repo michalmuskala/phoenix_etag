@@ -25,11 +25,19 @@ end
 
 # view
 
-def stale_checks("show." <> format, %{data: data}) do
-  [etag: PhoenixETag.schema_etag(data) <> "-" <> format, 
-   last_modified: data.updated_at]
+def stale_checks("show." <> _format, %{data: data}) do
+  [etag: PhoenixETag.schema_etag(data), 
+   last_modified: PhoenixETag.schema_last_modified(data)]
 end
 ```
+
+Both the etag and last_modified values are optional. The first one will add an
+`etag` header to the response and perform a stale check against the
+`if-none-match` header. The second one will add a `last-modified` header to the
+response and perform a stale check against the `if-modified-since` header.
+If the headers indicate cache is fresh a 304 Not Modified response is triggered,
+and rendering of the response is aborted. If headers indicate cache is stale,
+render proceeds as normal, except the extra headers are added to the response.
 
 ## Installation
 

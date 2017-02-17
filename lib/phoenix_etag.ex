@@ -1,4 +1,52 @@
 defmodule PhoenixETag do
+  @moduledoc """
+  Conditional request (ETag & modified-since) support for Phoenix.
+
+  ## Usage
+
+  The library provides a replacement function for `Phoenix.Controller.render/1-4`
+  called `PhoenixETag.render_if_stale/1-4` accepting exactly the same arguments.
+  When called the function expects the view to implement an additional callback:
+  `stale_checks/2` similar to `render/2` that is responsible for returning the
+  etag value and/or last modified value for the current resource.
+
+  Additional helper `PhoenixETag.schema_etag/1` is provided for generating etag
+  values of of a single or multiple schema structs.
+
+      # controller
+
+      def show(conn, %{"id" => id}) do
+        data = MyApp.load_data(id)
+        PhoenixETag.render_if_stale(conn, :show, data: data)
+      end
+
+      # view
+
+      def stale_checks("show." <> _format, %{data: data}) do
+        [etag: PhoenixETag.schema_etag(data),
+         last_modified: PhoenixETag.schema_last_modified(data)]
+      end
+
+  Both the `etag` and `last_modified` values are optional. The first one will add
+  an `etag` header to the response and perform a stale check against the
+  `if-none-match` header. The second one will add a `last-modified` header to the
+  response and perform a stale check against the `if-modified-since` header.
+  If the headers indicate cache is fresh a 304 Not Modified response is triggered,
+  and rendering of the response is aborted. If headers indicate cache is stale,
+  render proceeds as normal, except the extra headers are added to the response.
+  """
+
+  @type schema :: %{__struct__: atom, id: term, updated_at: Calendar.date_time}
+  @type etag :: String.t
+
+  @doc """
+  Utlity function for generating etag values from schemas.
+
+  This function assumes the schema has `id` field of any type and
+  `updated_at` field of either the `:utc_datetime` or `:naive_datetime` type.
+  A weak ETag is always produced.
+  """
+  @spec schema_etag(nil | schema | [schema]) :: etag
   def schema_etag(nil), do: nil
   def schema_etag([]), do: nil
   def schema_etag(schema_or_schemas) do
@@ -10,6 +58,13 @@ defmodule PhoenixETag do
     "W/ " <> Base.encode16(:crypto.hash(:md5, binary), case: :lower)
   end
 
+  @doc """
+  Utility function for obtaining a last modified value form schemas.
+
+  This function expects the schema to define a `updated_at` field of either
+  the `:utc_datetime` or `:naive_datetime` type.
+  """
+  @spec schema_last_modified(nil | schema | [schema]) :: Calendar.date_time
   def schema_last_modified(nil), do: nil
   def schema_last_modified([]), do: nil
   def schema_last_modified(schema_or_schemas) do
@@ -19,6 +74,13 @@ defmodule PhoenixETag do
     |> Enum.max_by(&NaiveDateTime.to_erl/1)
   end
 
+  @doc """
+  Render the given template or the default template
+  specified by the current action with the given assigns.
+
+  See `render_if_stale/3` for more information.
+  """
+  @spec render_if_stale(Plug.Conn.t, Keyword.t | map | binary | atom) :: Plug.Conn.t
   def render_if_stale(conn, template_or_assigns \\ [])
 
   def render_if_stale(conn, template) when is_binary(template) or is_atom(template) do
@@ -30,6 +92,26 @@ defmodule PhoenixETag do
     render_if_stale(conn, action, assigns)
   end
 
+  @doc """
+  Renders the given `template` and `assigns` based on the `conn` information.
+
+  Considers data freshness based on the `if-modified-since` and `if-none-match`
+  headers and avoids rendering if a `304 Not Modified` response is possible.
+
+  Expects the view module to implement an additional callback: `stale_checks/2`.
+  The function is called with the template name and assigns - exactly like
+  `render/2`. The callback is expected to return a keyword list with two
+  possible keys:
+
+    * `:etag` - the entity tag for the current resource. Can be generated using
+      the `schema_etag/1` utility function.
+    * `:last_modified` - the last modified value for the current resource. Has to
+      be either a `NaiveDateTime` or a `DateTime`. The value can be obtained with
+      the `schema_last_modified/1` utility function.
+
+  See `Phoenix.Controller.render/3` for more information.
+  """
+  @spec render_if_stale(Plug.Conn.t, binary | atom, Keyword.t | map) :: Plug.Conn.t
   def render_if_stale(conn, template, assigns)
       when is_atom(template) and (is_list(assigns) or is_map(assigns)) do
     format =
@@ -58,6 +140,17 @@ defmodule PhoenixETag do
     render_if_stale(conn, view, template, %{})
   end
 
+  @doc """
+  A shortcut that renders the given template in the given view.
+
+  Equivalent to:
+
+      conn
+      |> put_view(view)
+      |> render_if_stale(template, assigns)
+
+  """
+  @spec render_if_stale(Plug.Conn.t, atom, atom | binary, Keyword.t | map) :: Plug.Conn.t
   def render_if_stale(conn, view, template, assigns)
       when is_atom(view) and (is_binary(template) or is_atom(template)) do
     conn
