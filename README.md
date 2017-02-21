@@ -13,7 +13,7 @@ When called the function expects the view to implement an additional callback:
 etag value and/or last modified value for the current resource.
 
 Additional helper `PhoenixETag.schema_etag/1` is provided for generating etag
-values of of a single or multiple schema structs.
+values of a single or multiple schema structs.
 
 ```elixir
 # controller
