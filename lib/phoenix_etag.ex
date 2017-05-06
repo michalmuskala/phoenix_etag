@@ -11,7 +11,7 @@ defmodule PhoenixETag do
   etag value and/or last modified value for the current resource.
 
   Additional helper `PhoenixETag.schema_etag/1` is provided for generating etag
-  values of of a single or multiple schema structs.
+  values of a single or multiple schema structs.
 
       # controller
 
@@ -40,7 +40,7 @@ defmodule PhoenixETag do
   @type etag :: String.t
 
   @doc """
-  Utlity function for generating etag values from schemas.
+  Utility function for generating etag values from schemas.
 
   This function assumes the schema has `id` field of any type and
   `updated_at` field of either the `:utc_datetime` or `:naive_datetime` type.
@@ -59,10 +59,10 @@ defmodule PhoenixETag do
   end
 
   @doc """
-  Utility function for obtaining a last modified value form schemas.
+  Utility function for obtaining the last modified value from schemas.
 
   This function expects the schema to define a `updated_at` field of either
-  the `:utc_datetime` or `:naive_datetime` type.
+  `:utc_datetime` or `:naive_datetime` type.
   """
   @spec schema_last_modified(nil | schema | [schema]) :: Calendar.date_time
   def schema_last_modified(nil), do: nil
@@ -75,7 +75,7 @@ defmodule PhoenixETag do
   end
 
   @doc """
-  Render the given template or the default template
+  Renders the given template or the default template
   specified by the current action with the given assigns.
 
   See `render_if_stale/3` for more information.
