@@ -208,7 +208,9 @@ defmodule PhoenixETag do
     none_match     = List.first Plug.Conn.get_req_header(conn, "if-none-match")
 
     if get_or_head?(conn) and (modified_since || none_match) do
-      modified_since?(modified_since, modified) or none_match?(none_match, etag)
+      is_nil(modified_since) and is_nil(none_match)
+      or modified_since?(modified_since, modified) 
+      or none_match?(none_match, etag)
     else
       true
     end
